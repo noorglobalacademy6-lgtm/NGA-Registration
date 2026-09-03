@@ -1,0 +1,147 @@
+ <!DOCTYPE html>
+<html lang="ur" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NGA - ایڈمن ڈیش بورڈ</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: Tahoma, Arial, sans-serif; background: #f4f6f9; margin: 0; padding: 10px; text-align: right; }
+    .container { max-width: 1100px; margin: 0 auto; background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+    h2 { color: #1e3c72; border-bottom: 2px solid #1e3c72; padding-bottom: 10px; margin-top: 0; font-size: 20px; text-align: center; }
+    .controls { display: flex; flex-direction: column; margin-bottom: 15px; gap: 10px; }
+    input[type="text"] { padding: 10px; border: 1px solid #ccc; border-radius: 4px; width: 100%; font-size: 14px; }
+    button { padding: 10px 15px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; width: 100%; font-weight: bold; }
+    button:hover { background: #218838; }
+    .table-wrapper { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; min-width: 700px; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: right; font-size: 13px; }
+    th { background: #1e3c72; color: white; }
+    tr:nth-child(even) { background: #f9f9f9; }
+    #authOverlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); display: flex; justify-content: center; align-items: center; z-index: 999; padding: 15px; }
+    .login-box { background: #fff; padding: 20px; border-radius: 8px; text-align: center; width: 100%; max-width: 320px; }
+    .login-box input { width: 100%; padding: 10px; margin-bottom: 15px; text-align: center; font-size: 16px; border: 1px solid #ccc; border-radius: 4px; }
+  </style>
+</head>
+<body>
+
+<div id="authOverlay">
+  <div class="login-box">
+    <h3 style="margin-top: 0;">ایڈمن لاگ ان</h3>
+    <input type="password" id="passInput" placeholder="پاسورڈ درج کریں">
+    <button onclick="checkPassword()">لاگ ان کریں</button>
+    <p id="passError" style="color: red; display: none; margin-top: 10px; font-size: 14px;">غلط پاسورڈ!</p>
+  </div>
+</div>
+
+<div class="container">
+  <h2>نور گلوبل اکیڈمی - ایڈمن ڈیش بورڈ</h2>
+  
+  <div class="controls">
+    <input type="text" id="searchInput" onkeyup="filterTable()" placeholder="طالب علم کا نام، فون نمبر یا کورس سرچ کریں...">
+    <button onclick="downloadCSV()">Excel (CSV) میں ڈاؤن لوڈ کریں</button>
+  </div>
+
+  <div class="table-wrapper">
+    <table id="studentsTable">
+      <thead>
+        <tr>
+          <th>تاریخ</th>
+          <th>نام</th>
+          <th>والد کا نام</th>
+          <th>ای میل</th>
+          <th>فون نمبر</th>
+          <th>اسکول سیکشن</th>
+          <th>منتخب شدہ کورسز</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody">
+        <tr><td colspan="7" style="text-align:center;">برائے مہربانی پہلے لاگ ان کریں۔</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  const SUPABASE_URL = "https://qepaxfuhwnjgjlmsblpi.supabase.co";
+  const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFlcGF4ZnVod25qZ2psbXNibHBpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzNjMxNTksImV4cCI6MjEwMzkzOTE1OX0.-kfPjpQbQSdS5oIXExrWPHvqyh6ZiOnukCV1zLBDft4";
+
+  function checkPassword() {
+    const pwd = document.getElementById('passInput').value;
+    if (pwd === "NGA123") {
+      document.getElementById('authOverlay').style.display = 'none';
+      fetchRegistrations();
+    } else {
+      document.getElementById('passError').style.display = 'block';
+    }
+  }
+
+  async function fetchRegistrations() {
+    const tableBody = document.getElementById('tableBody');
+    tableBody.innerHTML = '<tr><td colspan="7" style="text-align:center;">ڈیٹا لوڈ ہو رہا ہے...</td></tr>';
+
+    try {
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/NGA_Registrations?select=*&order=id.desc`, {
+        headers: {
+          "apikey": SUPABASE_KEY,
+          "Authorization": `Bearer ${SUPABASE_KEY}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error("Permissions Error");
+      }
+
+      const data = await response.json();
+      tableBody.innerHTML = '';
+
+      if (data.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="7" style="text-align:center;">کوئی ڈیٹا موجود نہیں ہے۔</td></tr>';
+        return;
+      }
+
+      data.forEach(row => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${new Date(row.created_at || Date.now()).toLocaleDateString('ur-PK')}</td>
+          <td>${row.full_name || '-'}</td>
+          <td>${row.father_name || '-'}</td>
+          <td>${row.email || '-'}</td>
+          <td>${row.phone || '-'}</td>
+          <td>${row.school_class || '-'}</td>
+          <td>${row.selected_courses || '-'}</td>
+        `;
+        tableBody.appendChild(tr);
+      });
+    } catch (err) {
+      tableBody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:red;">ڈیٹا حاصل نہیں ہو سکا! Supabase میں SELECT پالیسی کی اجازت دیکھیں۔</td></tr>';
+    }
+  }
+
+  function filterTable() {
+    const input = document.getElementById("searchInput").value.toUpperCase();
+    const trs = document.getElementById("tableBody").getElementsByTagName("tr");
+    for (let i = 0; i < trs.length; i++) {
+      const text = trs[i].innerText;
+      trs[i].style.display = text.toUpperCase().indexOf(input) > -1 ? "" : "none";
+    }
+  }
+
+  function downloadCSV() {
+    let csv = [];
+    const rows = document.querySelectorAll("table tr");
+    for (let i = 0; i < rows.length; i++) {
+      let row = [], cols = rows[i].querySelectorAll("td, th");
+      for (let j = 0; j < cols.length; j++) row.push('"' + cols[j].innerText + '"');
+      csv.push(row.join(","));
+    }
+    const csvFile = new Blob(["\ufeff" + csv.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const downloadLink = document.createElement("a");
+    downloadLink.download = "NGA_Registrations.csv";
+    downloadLink.href = window.URL.createObjectURL(csvFile);
+    downloadLink.click();
+  }
+</script>
+
+</body>
+</html>
